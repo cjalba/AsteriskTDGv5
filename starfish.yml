@@ -1,20 +1,20 @@
 ---
+# CentOs (7) version
 - hosts: starfish
   become: yes
   vars:
 # Use these on the first run of this playbook
-    current_mysql_root_password: ""
-    updated_mysql_root_password: "YouNeedAReallyGoodPassword"
-    current_mysql_asterisk_password: ""
-    updated_mysql_asterisk_password: "YouNeedAReallyGoodPasswordHereToo"
+#    current_mysql_root_password: ""
+#    updated_mysql_root_password: "YouNeedAReallyGoodPasswor-"
+#    current_mysql_asterisk_password: ""
+#    updated_mysql_asterisk_password: "YouNeedAReallyGoodPasswordToo"
 # Comment the above out after the first run
 
 # Uncomment these for subsequent runs
-#    current_mysql_root_password: "YouNeedAReallyGoodPassword"
-#    updated_mysql_root_password: "{{ current_mysql_root_password }}"
-#    current mysql_asterisk_password: "YouNeedAReallyGoodPasswordHereToo"
-#    updated_mysql_asterisk_password: "{{ current mysql_asterisk_password }}"
-
+    current_mysql_root_password: "YouNeedAReallyGoodPassword"
+    updated_mysql_root_password: "{{ current_mysql_root_password }}"
+    current_mysql_asterisk_password: "YouNeedAReallyGoodPasswordToo"
+    updated_mysql_asterisk_password: "{{ current_mysql_asterisk_password }}"
 
   tasks:
 
@@ -26,18 +26,13 @@
   - name: Install dependencies
     dnf:
       name: ['vim', 'wget', 'MySQL-python']
-      state: present
+      state: present  
 
-  - name: Install the MySQL repo.
+  - name: Install mariadb-server
     dnf:
-      name: http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
+      name: mariadb-server
       state: present
-
-  - name: Install mysql-server
-    dnf:
-      name: mysql-server
-      state: present
-
+  
   - name: Override variables for MYSQL (RedHat).
     set_fact:
       mysql_daemon: mysqld
@@ -46,11 +41,11 @@
       mysql_syslog_tag: nysqld
       mysql_pid_file: /var/run/nysqld/mysqld.pid
       mysql_socket: /var/lib/mysql/mysql.sock
-    when: ansible_os_family == "RedHat"
+    when: ansible_os_family == "RedHat"      
 
-  - name: Ensure MySQL server is running
+  - name: Ensure MySQL(MariaDB) server is running
     service:
-      name: mysqld
+      name: mariadb.service 
       state: started
       enabled: yes
 
@@ -67,7 +62,7 @@
   - name: update mysql root password for all other local root accounts
     mysql_user:
       login_user: root
-      login password: "{{ updated_nysql_root_password }}"
+      login_password: "{{ updated_mysql_root_password }}"
       name: root
       host: "{{ item }}"
       password: "{{ updated_mysql_root_password }}"
@@ -87,11 +82,11 @@
   - name: asterisk mysql user
     mysql_user:
       login_user: root
-      login password: "{{ updated nysql_root_pas Sword }}"
+      login_password: "{{ updated_mysql_root_password }}"
       name: asterisk
       host: "{{ item }}"
-      password: "{{ updated_nysql_asterisk_password }}"
-      priv: "asterisk.*: ALL"
+      password: "{{ updated_mysql_asterisk_password }}"
+      priv: "asterisk.*::ALL"
     with_items:
       - "{{ inventory_hostname }}"
       - 127.0.0.1
@@ -102,7 +97,7 @@
   - name: remove anonymous user
     mysql_user:
       login_user: root
-      login password: "{{ updated_mysql_root_password }}"
+      login_password: "{{ updated_mysql_root_password }}"
       name: ""
       state: absent
       host: "{{ item }}"
@@ -113,10 +108,10 @@
       - ::1
       - localhost.localdomain
 
-  - name: renove test database
+  - name: remove test database
     mysql_db:
       login_user: root
-      login password: "{{ updated_mysql_root_password }}"
+      login_password: "{{ updated_mysql_root_password }}"
       name: test
       state: absent
 
@@ -138,7 +133,7 @@
     dnf:
       name:
       - unixODBC
-      - unix0DBC-devel
+      - unixODBC-devel
       - mysql-connector-odbc
       - MySQL-python
       - tcpdump
@@ -157,7 +152,7 @@
 #   Tweak firewall for UDP/RTP
   - firewalld:
       port: 10000-20000/udp
-      pernanent: true
+      permanent: true
       state: enabled
 
   - name: Ensure NTP is runntng
@@ -169,6 +164,8 @@
 # The libmyodbc8a.so file is versioned, so if you don't have verston 8, see what the
 # /usr/lib64/libmyodbc<verston>a.so file is, and refer to that tnstead
 # on your 'Driver64' line, and then run the playbook again  
+#
+# In this case /usr/lib64/libmyodbc5.so
   - name: update odbcinst.ini
     lineinfile:
       dest: /etc/odbcinst.ini
@@ -177,7 +174,7 @@
       state: present
     with_items:
       - regexp: "^Driver64"
-        line: "Driver64 = /usr/lib64/libmyodbc8a.so"
+        line: "Driver64 = /usr/lib64/libmyodbc5.so"
       - regexp: "^Setup64"
         line: "Setup64 = /usr/lib64/libodbcmyS.so"
     
@@ -193,6 +190,6 @@
         Port = 3306
         Database = asterisk
         UserName = asterisk
-        Password = {{ updated nysql_asterisk_password }}
+        Password = {{ updated_mysql_asterisk_password }}
         ## Socket = /var/run/mysqld/mysqld.sock
-        Socket = /var/ltb/nysql/mysql.sock
+        Socket = /var/lib/mysql/mysql.sock
